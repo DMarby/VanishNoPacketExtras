@@ -44,6 +44,7 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
 
     // Inspired by fullwall
     private ItemStack[] loadInventory() {
+        ItemStack[] new_inventory = new ItemStack[36];
         String load = config.items;
         for (String whole : Splitter.on('|').split(load)) {
             String[] parts = whole.split("x");
@@ -56,12 +57,12 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
                 continue;
             }
             ItemStack add = new ItemStack(id, amount);
-            boolean success = addStackToInventory(inventory, add);
+            boolean success = addStackToInventory(new_inventory, add);
             if (!success) {
                 log("Failed to put " + whole + " into the inventory - not enough space.");
             }
         }
-        return inventory;
+        return new_inventory;
     }
 
     private void unVanish(Player player) {
@@ -100,7 +101,7 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
     public void onEnable() {
         config.setFile(this);
         config.load();
-        loadInventory();
+        inventory = loadInventory();
 
         getServer().getPluginManager().registerEvents(this, this);
         log("v" + getDescription().getVersion() + " enabled.");
