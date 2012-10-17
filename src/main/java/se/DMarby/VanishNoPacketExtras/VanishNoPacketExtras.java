@@ -1,9 +1,9 @@
 package se.DMarby.VanishNoPacketExtras;
 
+import com.google.common.base.Splitter;
 import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -14,6 +14,7 @@ import org.kitteh.vanish.event.VanishStatusChangeEvent;
 
 public class VanishNoPacketExtras extends JavaPlugin implements Listener {
 
+    private static VanishNoPacketExtrasConfig config = new VanishNoPacketExtrasConfig();
     private Map<String, ItemStack[]> inventories = new HashMap();
     private Map<String, ItemStack[]> armor = new HashMap();
     private Map<String, Location> cordinates = new HashMap();
@@ -23,31 +24,84 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
         getLogger().info(message);
     }
 
+    // Inspired by fullwall
+    private boolean addStackToInventory(ItemStack[] inventory, ItemStack add) {
+        for (int i = 0; i < inventory.length; ++i) {
+            ItemStack in = inventory[i];
+            if (in == null) {
+                inventory[i] = add;
+                return true;
+            } else if (in.getTypeId() == add.getTypeId()) {
+                int maxStackSize = in.getMaxStackSize();
+                if (in.getAmount() + add.getAmount() <= maxStackSize) {
+                    in.setAmount(in.getAmount() + add.getAmount());
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Inspired by fullwall
+    private ItemStack[] loadInventory() {
+        String load = config.items;
+        for (String whole : Splitter.on('|').split(load)) {
+            String[] parts = whole.split("x");
+            int id, amount;
+            try {
+                id = Integer.parseInt(parts[0]);
+                amount = Integer.parseInt(parts[1]);
+            } catch (NumberFormatException ex) {
+                log("Incorrect item format " + whole + "; skipping.");
+                continue;
+            }
+            ItemStack add = new ItemStack(id, amount);
+            boolean success = addStackToInventory(inventory, add);
+            if (!success) {
+                log("Failed to put " + whole + " into the inventory - not enough space.");
+            }
+        }
+        return inventory;
+    }
+
     private void unVanish(Player player) {
-        player.teleport(cordinates.get(player.getName()));
-        player.getInventory().setContents(inventories.get(player.getName()));
-        player.getInventory().setArmorContents(armor.get(player.getName()));
-        cordinates.remove(player.getName());
-        inventories.remove(player.getName());
-        armor.remove(player.getName());
+        if (config.teleport) {
+            player.teleport(cordinates.get(player.getName()));
+            cordinates.remove(player.getName());
+        }
+        if (config.inventory) {
+            player.getInventory().setContents(inventories.get(player.getName()));
+            player.getInventory().setArmorContents(armor.get(player.getName()));
+            inventories.remove(player.getName());
+            armor.remove(player.getName());
+        }
     }
 
     @Override
     public void onDisable() {
         for (String p : inventories.keySet()) {
             Player player = getServer().getPlayer(p);
-            player.teleport(cordinates.get(player.getName()));
-            player.getInventory().setContents(inventories.get(player.getName()));
-            player.getInventory().setArmorContents(armor.get(player.getName()));
-            player.setAllowFlight(false);
-            player.setFlying(false);
+            if (config.teleport) {
+                player.teleport(cordinates.get(player.getName()));
+            }
+            if (config.inventory) {
+                player.getInventory().setContents(inventories.get(player.getName()));
+                player.getInventory().setArmorContents(armor.get(player.getName()));
+            }
+            if (config.fly) {
+                player.setAllowFlight(false);
+                player.setFlying(false);
+            }
         }
         log("v" + getDescription().getVersion() + " disabled.");
     }
 
     @Override
     public void onEnable() {
-        inventory = new ItemStack[]{new ItemStack(Material.getMaterial(345), 1), new ItemStack(Material.getMaterial(60), 1), new ItemStack(Material.getMaterial(270), 1), new ItemStack(Material.getMaterial(276), 1), new ItemStack(Material.getMaterial(257), 1)};
+        config.setFile(this);
+        config.load();
+        loadInventory();
+
         getServer().getPluginManager().registerEvents(this, this);
         log("v" + getDescription().getVersion() + " enabled.");
     }
@@ -55,14 +109,20 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
     @EventHandler
     public void onVanishStatusChange(VanishStatusChangeEvent event) {
         Player player = event.getPlayer();
-        player.setAllowFlight(event.isVanishing());
-        player.setFlying(event.isVanishing());
+        if (config.fly) {
+            player.setAllowFlight(event.isVanishing());
+            player.setFlying(event.isVanishing());
+        }
         if (event.isVanishing()) {
-            cordinates.put(player.getName(), player.getLocation());
-            inventories.put(player.getName(), player.getInventory().getContents());
-            armor.put(player.getName(), player.getInventory().getArmorContents());
-            player.getInventory().setArmorContents(null);
-            player.getInventory().setContents(inventory);
+            if (config.teleport) {
+                cordinates.put(player.getName(), player.getLocation());
+            }
+            if (config.inventory) {
+                inventories.put(player.getName(), player.getInventory().getContents());
+                armor.put(player.getName(), player.getInventory().getArmorContents());
+                player.getInventory().setArmorContents(null);
+                player.getInventory().setContents(inventory);
+            }
         } else {
             unVanish(event.getPlayer());
         }
@@ -71,6 +131,8 @@ public class VanishNoPacketExtras extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         if (inventories.containsKey(event.getPlayer().getName())) {
+            event.getPlayer().setAllowFlight(false);
+            event.getPlayer().setFlying(false);
             unVanish(event.getPlayer());
         }
     }
