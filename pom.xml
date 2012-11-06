@@ -55,8 +55,8 @@
             </plugin>
         </plugins>
     </build>
-    <groupId>net.betterverse</groupId>
+    <groupId>se.DMarby</groupId>
     <artifactId>VanishNoPacketExtras</artifactId>
     <name>VanishNoPacketExtras</name>
-    <description>BanManager for Betterverse</description>
+    <description>VanishNoPacketExtras</description>
 </project>
